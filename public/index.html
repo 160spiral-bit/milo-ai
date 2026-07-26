@@ -1321,9 +1321,9 @@
   });
 
   var MODELS = [
-    { id: 'milo-v25-flash', name: 'Milo V2.5 Flash', desc: 'Fastest for everyday tasks' },
-    { id: 'milo-v25-pro', name: 'Milo V2.5 Pro', desc: 'Most capable for complex tasks', selected: true },
-    { id: 'milo-v3', name: 'Milo V3', desc: 'Latest model with enhanced reasoning' },
+    { id: 'milo-v25-flash', name: 'Milo V2.5 Flash', desc: 'Fastest for everyday tasks', upstreamId: 'gpt-4o-mini' },
+    { id: 'milo-v25-pro',   name: 'Milo V2.5 Pro',   desc: 'Most capable for complex tasks', upstreamId: 'gpt-4o', selected: true },
+    { id: 'milo-v3',        name: 'Milo V3',         desc: 'Latest model with enhanced reasoning', upstreamId: 'gpt-4-turbo' },
   ];
   var selectedModel = 'milo-v25-pro';
   var modelDropdown = null;
@@ -1517,11 +1517,13 @@
 
     currentAbortController = new AbortController();
 
+    var upstreamModel = (MODELS.find(function(m) { return m.id === selectedModel; }) || {}).upstreamId || 'gpt-4o-mini';
+
     try {
       var response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: conv.messages }),
+        body: JSON.stringify({ messages: conv.messages, model: upstreamModel }),
         signal: currentAbortController.signal,
       });
 

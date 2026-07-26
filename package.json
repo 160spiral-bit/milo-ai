@@ -1,0 +1,13 @@
+{
+  "name": "milo-ai",
+  "version": "1.0.0",
+  "description": "A Claude/ChatGPT-style chat interface for Milo AI with a Vercel serverless backend.",
+  "main": "public/index.html",
+  "private": true,
+  "scripts": {},
+  "dependencies": {},
+  "devDependencies": {},
+  "engines": {
+    "node": ">=18.x"
+  }
+}

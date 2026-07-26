@@ -4,7 +4,9 @@
   "description": "A Claude/ChatGPT-style chat interface for Milo AI with a Vercel serverless backend.",
   "main": "public/index.html",
   "private": true,
-  "scripts": {},
+  "scripts": {
+    "dev": "vercel dev"
+  },
   "dependencies": {},
   "devDependencies": {},
   "engines": {

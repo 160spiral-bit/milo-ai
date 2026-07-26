@@ -38,9 +38,9 @@ module.exports = async function handler(req, res) {
     }
   }
 
-  const ALLOWED_MODELS = ['gpt-4o-mini', 'gpt-4o', 'gpt-4-turbo', 'gpt-4', 'gpt-3.5-turbo'];
-  const requestedModel = typeof body.model === 'string' ? body.model : 'gpt-4o-mini';
-  const model = ALLOWED_MODELS.includes(requestedModel) ? requestedModel : 'gpt-4o-mini';
+  const ALLOWED_MODELS = ['deepseek-v4-pro-thinking', 'glm-5.2-thinking', 'gpt-oss-120b', 'kimi-k2-7-code', 'minimax-m3'];
+  const requestedModel = typeof body.model === 'string' ? body.model : 'gpt-oss-120b';
+  const model = ALLOWED_MODELS.includes(requestedModel) ? requestedModel : 'gpt-oss-120b';
 
   const MAX_RETRIES = 3;
   const RETRY_DELAYS_MS = [1000, 2000, 4000];

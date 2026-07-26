@@ -502,7 +502,7 @@
     position: fixed; background: var(--panel);
     border: 1px solid var(--border); border-radius: var(--radius-xl);
     padding: 6px; box-shadow: var(--popover-shadow);
-    z-index: 100; min-width: 320px;
+    z-index: 150; min-width: 320px;
     display: flex; flex-direction: column; gap: 2px;
   }
   .model-option {
@@ -918,15 +918,26 @@
   var conversations = loadConversations();
   var activeId = conversations[0] ? conversations[0].id : null;
 
-  function newConversation() {
+  function startNewChat() {
+    activeId = null;
+    renderSidebar();
+    renderChat();
+  }
+  function ensureConversation() {
+    if (activeId) {
+      var existing = conversations.find(function(c) { return c.id === activeId; });
+      if (existing) return existing;
+    }
     var conv = { id: Date.now().toString(), title: 'New chat', messages: [] };
     conversations.unshift(conv);
     activeId = conv.id;
     saveConversations(conversations);
-    renderSidebar();
-    renderChat();
+    return conv;
   }
-  function getActive() { return conversations.find(function(c) { return c.id === activeId; }); }
+  function getActive() {
+    if (!activeId) return null;
+    return conversations.find(function(c) { return c.id === activeId; }) || null;
+  }
 
   function getLastAssistantPreview(conv) {
     for (var i = conv.messages.length - 1; i >= 0; i--) {
@@ -1143,9 +1154,10 @@
   }
 
   newChatBtn.addEventListener('click', function() {
-    newConversation();
+    startNewChat();
     switchView('chat');
     if (window.innerWidth <= 720) sidebar.classList.add('collapsed');
+    input.focus();
   });
   var chatsBtn = document.getElementById('chats-btn');
   chatsBtn.addEventListener('click', function() {
@@ -1228,9 +1240,10 @@
   });
 
   document.getElementById('chats-new-btn').addEventListener('click', function() {
-    newConversation();
+    startNewChat();
     switchView('chat');
     if (window.innerWidth <= 720) sidebar.classList.add('collapsed');
+    input.focus();
   });
 
   document.getElementById('chats-back-btn').addEventListener('click', function() { switchView('chat'); });
@@ -1239,8 +1252,9 @@
 
   if (document.getElementById('chats-empty-btn')) {
     document.getElementById('chats-empty-btn').addEventListener('click', function() {
-      newConversation();
+      startNewChat();
       switchView('chat');
+      input.focus();
     });
   }
 
@@ -1376,18 +1390,28 @@
     var margin = 8;
     var left = rect.left;
     var top = rect.top - ddRect.height - 6;
+    if (ddRect.height === 0) {
+      top = rect.top - 180;
+    }
     if (top < margin) top = rect.bottom + 6;
     if (left + ddRect.width > window.innerWidth - margin) left = Math.max(margin, window.innerWidth - ddRect.width - margin);
+    if (left < margin) left = margin;
     modelDropdown.style.left = left + 'px';
     modelDropdown.style.top = top + 'px';
   }
   function openModelDropdown() {
     ensureModelDropdown();
-    positionModelDropdown();
+    modelDropdown.style.visibility = 'hidden';
     modelDropdown.style.opacity = '0';
     modelDropdown.style.transform = 'translateY(-4px)';
+    positionModelDropdown();
     modelDropdown.style.transition = 'opacity 170ms cubic-bezier(0.16, 1, 0.3, 1), transform 170ms cubic-bezier(0.16, 1, 0.3, 1)';
-    requestAnimationFrame(function() { requestAnimationFrame(function() { modelDropdown.style.opacity = '1'; modelDropdown.style.transform = 'translateY(0)'; }); });
+    requestAnimationFrame(function() {
+      modelDropdown.style.visibility = 'visible';
+      modelDropdown.style.opacity = '1';
+      modelDropdown.style.transform = 'translateY(0)';
+      positionModelDropdown();
+    });
   }
   function closeModelDropdown() {
     if (!modelDropdown) return;
@@ -1487,7 +1511,7 @@
     var text = input.value.trim();
     if (!text) return;
 
-    if (!activeId) newConversation();
+    if (!activeId) ensureConversation();
     var conv = getActive();
 
     input.value = '';
@@ -1594,8 +1618,9 @@
   document.addEventListener('keydown', function(e) {
     if (e.ctrlKey && e.key === 'n') {
       e.preventDefault();
-      newConversation();
+      startNewChat();
       switchView('chat');
+      input.focus();
     }
     if (e.ctrlKey && e.shiftKey && e.key === 'C') {
       e.preventDefault();

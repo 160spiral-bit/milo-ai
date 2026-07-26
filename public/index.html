@@ -1119,7 +1119,8 @@
       if (conv) {
         var msgs = chatInner.querySelectorAll('.msg.assistant .bubble');
         var idx = Array.from(msgs).indexOf(bubble);
-        if (idx >= 0 && conv.messages[idx] && conv.messages[idx].content) text = conv.messages[idx].content;
+        var assistantMsgs = conv.messages.filter(function(m) { return m.role === 'assistant'; });
+        if (idx >= 0 && assistantMsgs[idx] && assistantMsgs[idx].content) text = assistantMsgs[idx].content;
         else text = bubble.textContent;
       } else { text = bubble.textContent; }
       navigator.clipboard.writeText(text).catch(function(){});
@@ -1335,7 +1336,7 @@
   });
 
   var MODELS = [
-    { id: 'milo-v25-flash', name: 'Milo V2.5 Flash', desc: 'Fastest for everyday tasks', upstreamId: 'gpt-oss-120b' },
+    { id: 'milo-v25-flash', name: 'Milo V2.5 Flash', desc: 'Fastest for everyday tasks', upstreamId: 'mimo-v2-5' },
     { id: 'milo-v25-pro',   name: 'Milo V2.5 Pro',   desc: 'Most capable for complex tasks', upstreamId: 'deepseek-v4-pro-thinking', selected: true },
     { id: 'milo-v3',        name: 'Milo V3',         desc: 'Latest model with enhanced reasoning', upstreamId: 'glm-5.2-thinking' },
   ];
@@ -1541,7 +1542,7 @@
 
     currentAbortController = new AbortController();
 
-    var upstreamModel = (MODELS.find(function(m) { return m.id === selectedModel; }) || {}).upstreamId || 'gpt-oss-120b';
+    var upstreamModel = (MODELS.find(function(m) { return m.id === selectedModel; }) || {}).upstreamId || 'mimo-v2-5';
 
     try {
       var response = await fetch('/api/chat', {

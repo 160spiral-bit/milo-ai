@@ -42,31 +42,46 @@ module.exports = async function handler(req, res) {
   const requestedModel = typeof body.model === 'string' ? body.model : 'gpt-4o-mini';
   const model = ALLOWED_MODELS.includes(requestedModel) ? requestedModel : 'gpt-4o-mini';
 
-  try {
-    const upstream = await fetch('https://crowllm.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        model,
-        messages,
-        stream: true
-      })
-    });
+  const MAX_RETRIES = 3;
+  const RETRY_DELAYS_MS = [1000, 2000, 4000];
 
-    if (!upstream.ok) {
-      const text = await upstream.text();
-      return res.status(upstream.status).json({
+  try {
+    let upstream = null;
+    let attempts = 0;
+    let lastStatus = 0;
+    let lastBody = '';
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      attempts = attempt + 1;
+      upstream = await fetch('https://crowllm.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          model,
+          messages,
+          stream: true
+        })
+      });
+      lastStatus = upstream.status;
+      if (upstream.ok) break;
+      lastBody = await upstream.text();
+      if (upstream.status !== 429 || attempt === MAX_RETRIES) break;
+      await new Promise(function(r) { setTimeout(r, RETRY_DELAYS_MS[attempt]); });
+    }
+
+    if (!upstream || !upstream.ok) {
+      return res.status(lastStatus || 502).json({
         error: 'Upstream error',
-        message: text
+        message: lastBody
       });
     }
 
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Milo-Retry-Attempts', String(attempts - 1));
 
     const reader = upstream.body.getReader();
     let done = false;

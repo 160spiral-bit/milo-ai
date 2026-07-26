@@ -45,30 +45,65 @@ module.exports = async function handler(req, res) {
   const MAX_RETRIES = 3;
   const RETRY_DELAYS_MS = [1000, 2000, 4000];
 
+  function isContextLengthError(status, text) {
+    if (status === 413) return true;
+    if (status !== 400) return false;
+    const lower = (text || '').toLowerCase();
+    return lower.indexOf('context length') !== -1
+        || lower.indexOf('maximum context') !== -1
+        || lower.indexOf('too many tokens') !== -1
+        || lower.indexOf('reduce the length') !== -1;
+  }
+
+  function trimMessages(msgs) {
+    if (msgs.length <= 2) return msgs;
+    const keepSystem = msgs[0] && msgs[0].role === 'system' ? 1 : 0;
+    const tail = msgs.slice(keepSystem + Math.floor((msgs.length - keepSystem) / 2));
+    return msgs.slice(0, keepSystem).concat(tail);
+  }
+
+  async function attemptChat(currentMessages) {
+    return await fetch('https://crowllm.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model,
+        messages: currentMessages,
+        stream: true
+      })
+    });
+  }
+
   try {
     let upstream = null;
     let attempts = 0;
     let lastStatus = 0;
     let lastBody = '';
-    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    let currentMessages = messages;
+    let trimmedOnce = false;
+
+    outer: for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       attempts = attempt + 1;
-      upstream = await fetch('https://crowllm.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
-        },
-        body: JSON.stringify({
-          model,
-          messages,
-          stream: true
-        })
-      });
+      upstream = await attemptChat(currentMessages);
       lastStatus = upstream.status;
       if (upstream.ok) break;
       lastBody = await upstream.text();
-      if (upstream.status !== 429 || attempt === MAX_RETRIES) break;
-      await new Promise(function(r) { setTimeout(r, RETRY_DELAYS_MS[attempt]); });
+      if (upstream.status === 429 && attempt < MAX_RETRIES) {
+        await new Promise(function(r) { setTimeout(r, RETRY_DELAYS_MS[attempt]); });
+        continue;
+      }
+      if (!trimmedOnce && isContextLengthError(upstream.status, lastBody)) {
+        const next = trimMessages(currentMessages);
+        if (next.length < currentMessages.length) {
+          currentMessages = next;
+          trimmedOnce = true;
+          continue outer;
+        }
+      }
+      break;
     }
 
     if (!upstream || !upstream.ok) {
@@ -82,15 +117,26 @@ module.exports = async function handler(req, res) {
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
     res.setHeader('X-Milo-Retry-Attempts', String(attempts - 1));
+    if (trimmedOnce) res.setHeader('X-Milo-Context-Trimmed', '1');
 
-    const reader = upstream.body.getReader();
-    let done = false;
-    while (!done) {
-      const result = await reader.read();
-      done = result.done;
-      if (result.value) {
-        res.write(Buffer.from(result.value));
-        if (res.flush) res.flush();
+    try {
+      const reader = upstream.body.getReader();
+      let done = false;
+      while (!done) {
+        const result = await reader.read();
+        done = result.done;
+        if (result.value) {
+          try { res.write(Buffer.from(result.value)); } catch (_) {}
+          if (res.flush) { try { res.flush(); } catch (_) {} }
+        }
+      }
+    } catch (streamErr) {
+      console.error('Error streaming upstream response:', streamErr);
+      if (!res.headersSent) {
+        return res.status(500).json({
+          error: 'Stream interrupted',
+          message: streamErr.message
+        });
       }
     }
     res.end();
